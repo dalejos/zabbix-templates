@@ -1,4 +1,4 @@
-# Mikrotik by REST API
+# Mikrotik by REST API (v0.26beta)
 
 Template para el monitoreo de dispositivos **Mikrotik** utilizando la **REST API** (introducida en RouterOS v7). Este template permite una recolección de datos eficiente sin depender exclusivamente de SNMP, permitiendo obtener métricas de salud, interfaces y sesiones BGP.
 
