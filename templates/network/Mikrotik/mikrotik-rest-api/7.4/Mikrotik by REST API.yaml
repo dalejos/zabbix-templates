@@ -1,0 +1,1130 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 36bff6c29af64692839d077febfc7079
+      name: 'Templates/Network devices'
+  templates:
+    - uuid: 4d95fa18d3d548e4afa2aeccedd8689a
+      template: 'Mikrotik by REST API'
+      name: 'Mikrotik by REST API'
+      groups:
+        - name: 'Templates/Network devices'
+      items:
+        - uuid: e92a908dadee4ef3a3e184369dc4daa0
+          name: 'ICMP loss'
+          type: SIMPLE
+          key: 'icmppingloss[{$REST_API_HOST},10]'
+          value_type: FLOAT
+          units: '%'
+          description: 'The percentage of lost packets.'
+          tags:
+            - tag: component
+              value: health
+            - tag: component
+              value: network
+        - uuid: 870c606bec194d1ab86f20cecc1f8927
+          name: 'ICMP response time'
+          type: SIMPLE
+          key: 'icmppingsec[{$REST_API_HOST}]'
+          value_type: FLOAT
+          description: 'The ICMP ping response time (in seconds).'
+          tags:
+            - tag: component
+              value: health
+            - tag: component
+              value: network
+        - uuid: 049c652484684a899666e8a8fcb12fb4
+          name: 'ICMP ping'
+          type: SIMPLE
+          key: 'icmpping[{$REST_API_HOST}]'
+          description: |
+            The host accessibility by ICMP ping.
+            
+            0 - ICMP ping fails;
+            1 - ICMP ping successful.
+          valuemap:
+            name: 'Service state'
+          tags:
+            - tag: component
+              value: health
+            - tag: component
+              value: network
+        - uuid: 7bf47fbba08b46abbc578e3bb45e92ab
+          name: 'Mikrotik: REST API interface'
+          type: HTTP_AGENT
+          key: interface
+          delay: 10s
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$REST_API_USER}'
+          password: '{$REST_API_PASSWORD}'
+          url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/interface/print'
+          post_type: JSON
+          posts: |
+            {
+                ".proplist" : ".id,name,running,tx-byte,rx-byte,type"
+            }
+          request_method: POST
+          tags:
+            - tag: component
+              value: json
+        - uuid: 22bdc9205edc407e92a9dd11f68e13c3
+          name: 'Mikrotik: REST API interface ethernet'
+          type: HTTP_AGENT
+          key: interface.ethernet
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$REST_API_USER}'
+          password: '{$REST_API_PASSWORD}'
+          url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/interface/ethernet/print'
+          post_type: JSON
+          posts: |
+            {
+                ".query":["running=true"]
+            }
+          request_method: POST
+          tags:
+            - tag: component
+              value: json
+        - uuid: b127e666416c41eb9b40ec8a6c8d1364
+          name: 'Mikrotik: REST API interface ethernet sfp'
+          type: HTTP_AGENT
+          key: interface.ethernet.sfp
+          delay: 15m
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$REST_API_USER}'
+          password: '{$REST_API_PASSWORD}'
+          url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/interface/ethernet/print'
+          post_type: JSON
+          posts: |
+            {
+                ".query":["running=true"],
+                ".proplist" : ".id,default-name,name"
+            }
+          request_method: POST
+          tags:
+            - tag: component
+              value: json
+        - uuid: ea687099353c4f8bb66d8d03b61081c1
+          name: 'Mikrotik: REST API routing BGP session'
+          type: HTTP_AGENT
+          key: routing.bgp.session
+          delay: 30s
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$REST_API_USER}'
+          password: '{$REST_API_PASSWORD}'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  
+                  
+                  //data.forEach(function(item) {
+                  //  if (!('established' in item)) {
+                  //    item.established = false; 
+                  //  }
+                  //});
+                  
+                  return JSON.stringify(data);
+          url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/routing/bgp/session'
+          tags:
+            - tag: component
+              value: json
+        - uuid: 17bb5ad9450345fcb7809bcd729a3062
+          name: 'Mikrotik: REST API routing BGP session list'
+          type: DEPENDENT
+          key: routing.bgp.session.list
+          value_type: TEXT
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  
+                  var list = [];
+                  
+                  data.forEach(function(item) {
+                  	list.push(item.name);
+                  });
+                  
+                  var sessions = {"list": list, "count": list.length};
+                  
+                  return JSON.stringify(sessions);
+          master_item:
+            key: routing.bgp.session
+          tags:
+            - tag: component
+              value: json
+          triggers:
+            - uuid: 0c2729845acd4f46afc0ca0569f07b0b
+              expression: 'jsonpath(last(/Mikrotik by REST API/routing.bgp.session.list,#1), "$.count") < jsonpath(last(/Mikrotik by REST API/routing.bgp.session.list,#2), "$.count")'
+              recovery_mode: NONE
+              name: 'BGP closed session.'
+              opdata: 'Loss: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              manual_close: 'YES'
+        - uuid: 769b39a17f9c440cb83566b9f77f2f3d
+          name: 'Mikrotik: REST API system identity.'
+          type: HTTP_AGENT
+          key: system.identity
+          delay: 15m
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$REST_API_USER}'
+          password: '{$REST_API_PASSWORD}'
+          inventory_link: NAME
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.name
+          url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/system/identity'
+        - uuid: f16f475e095d4ee4bb32e7aa6bc67716
+          name: 'Mikrotik: REST API system resouce.'
+          type: HTTP_AGENT
+          key: system.resource
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$REST_API_USER}'
+          password: '{$REST_API_PASSWORD}'
+          url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/system/resource'
+        - uuid: e9ab27bb9e444ff0a944f5c4b419747c
+          name: 'Mikrotik: System resouce architecture-name.'
+          type: DEPENDENT
+          key: system.resource.architecture-name
+          value_type: TEXT
+          inventory_link: HW_ARCH
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.["architecture-name"]'
+          master_item:
+            key: system.resource
+        - uuid: d4d147bf2d844c9a9536da65f4aa9eaf
+          name: 'Mikrotik: System resource board-name.'
+          type: DEPENDENT
+          key: system.resource.board-name
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.["board-name"]'
+          master_item:
+            key: system.resource
+        - uuid: ef2b0fe90ba643d199ea6d4c997eef65
+          name: 'Mikrotik: REST API system resouce cpu.'
+          type: HTTP_AGENT
+          key: system.resource.cpu
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$REST_API_USER}'
+          password: '{$REST_API_PASSWORD}'
+          url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/system/resource/cpu'
+        - uuid: 12f03188342f4b3c80787ae4345b8e53
+          name: 'Mikrotik: System resource cpu-load.'
+          type: DEPENDENT
+          key: system.resource.cpu-load
+          units: '%'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.["cpu-load"]'
+          master_item:
+            key: system.resource
+        - uuid: 6681349b61ec46d9b5a0ebdb64d54600
+          name: 'Mikrotik: System resource free-memory.'
+          type: DEPENDENT
+          key: system.resource.free-memory
+          units: B
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.["free-memory"]'
+          master_item:
+            key: system.resource
+        - uuid: 37c1634dda2b4722ad9b767c852c19c4
+          name: 'Mikrotik: System resource memory utilization.'
+          type: CALCULATED
+          key: system.resource.memory-utilization
+          units: '%'
+          params: '(last(//system.resource.total-memory)-last(//system.resource.free-memory))*100/last(//system.resource.total-memory)'
+        - uuid: 011193e39516492d8d8849a364ac2a6a
+          name: 'Mikrotik: System resource platform.'
+          type: DEPENDENT
+          key: system.resource.platform
+          value_type: TEXT
+          inventory_link: VENDOR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.platform
+          master_item:
+            key: system.resource
+        - uuid: 4a487e401ce14de9800a2c1ff3fe2128
+          name: 'Mikrotik: System resource total-memory.'
+          type: DEPENDENT
+          key: system.resource.total-memory
+          trends: '0'
+          units: B
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.["total-memory"]'
+          master_item:
+            key: system.resource
+        - uuid: 56cbb493a71a4b7cb0e842c9a59eafbb
+          name: 'Mikrotik: REST API system routerboard.'
+          type: HTTP_AGENT
+          key: system.routerboard
+          delay: 15m
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$REST_API_USER}'
+          password: '{$REST_API_PASSWORD}'
+          url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/system/routerboard'
+        - uuid: 430ce1260c3a43688ad5ac7dc3f44f0a
+          name: 'Mikrotik: System routerboard current-firmware.'
+          type: DEPENDENT
+          key: system.routerboard.current-firmware
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.["current-firmware"]'
+          master_item:
+            key: system.routerboard
+        - uuid: 0d633d32eab140d188f672256b408454
+          name: 'Mikrotik: System routerboard hardware.'
+          type: CALCULATED
+          key: system.routerboard.hardware
+          delay: 15m
+          value_type: TEXT
+          params: 'concat(last(//system.resource.board-name), " (", last(//system.routerboard.model), ")")'
+          inventory_link: HARDWARE
+        - uuid: 2dfafd6984334fa9b9d15aa0e158d073
+          name: 'Mikrotik: System routerboard model.'
+          type: DEPENDENT
+          key: system.routerboard.model
+          value_type: TEXT
+          inventory_link: MODEL
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.model
+          master_item:
+            key: system.routerboard
+        - uuid: eb6cf7dfe6104ede9bcf63b108d7807b
+          name: 'Mikrotik: System routerboard serial-number.'
+          type: DEPENDENT
+          key: system.routerboard.serial-number
+          value_type: TEXT
+          inventory_link: SERIALNO_A
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.["serial-number"]'
+          master_item:
+            key: system.routerboard
+        - uuid: ae5a594e83024d89934acbab41c9b255
+          name: 'Mikrotik: System routerboard upgrade-firmware.'
+          type: DEPENDENT
+          key: system.routerboard.upgrade-firmware
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.["upgrade-firmware"]'
+          master_item:
+            key: system.routerboard
+        - uuid: 4a8a72b8b30d40e0a9ce1b922d51310f
+          name: 'Mikrotik: ZABBIX API'
+          type: HTTP_AGENT
+          key: zabbix.api.item.get
+          delay: 10s
+          value_type: TEXT
+          status: DISABLED
+          url: 'http://localhost:8080/api_jsonrpc.php'
+          post_type: JSON
+          posts: |
+            {
+                "jsonrpc": "2.0",
+                "method": "item.get",
+                "params": {
+                    "output": "extend",
+                    "hostids": "10780",
+                    "with_triggers": true,
+                    "search": {
+                        "key_": "routing.bgp.session.["
+                    },
+                    "sortfield": "name"
+                },
+                "id": 1
+            }
+          headers:
+            - name: Authorization
+              value: 'Bearer 15a47ba157acd28372abf211eb63edda457790158b0517533d4f13ac3e9eb088'
+          request_method: POST
+          tags:
+            - tag: component
+              value: json
+      discovery_rules:
+        - uuid: 794c8c1b21a44e60afe486fbfdd4d54a
+          name: 'Interface discovery'
+          type: DEPENDENT
+          key: interface.discovery
+          filter:
+            conditions:
+              - macro: '{#RUNNING}'
+                value: 'true'
+          item_prototypes:
+            - uuid: a7c940beac5f417fbe6454965136242e
+              name: 'Interface {#IFNAME} rx-byte'
+              type: DEPENDENT
+              key: 'interface.[{#IFNAME}.rx-byte]'
+              trends: '0'
+              units: bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["rx-byte"].first()'
+                - type: CHANGE_PER_SECOND
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              master_item:
+                key: interface
+            - uuid: 90e2191d89254337bd4f6b87cf0ae222
+              name: 'Interface {#IFNAME} tx-byte'
+              type: DEPENDENT
+              key: 'interface.[{#IFNAME}.tx-byte]'
+              trends: '0'
+              units: bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["tx-byte"].first()'
+                - type: CHANGE_PER_SECOND
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              master_item:
+                key: interface
+          graph_prototypes:
+            - uuid: aaf2492f17c64d628523898db0f5a883
+              name: 'Interface {#IFNAME} network traffic'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'interface.[{#IFNAME}.rx-byte]'
+                - sortorder: '1'
+                  color: FF4000
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'interface.[{#IFNAME}.tx-byte]'
+          master_item:
+            key: interface
+          lld_macro_paths:
+            - lld_macro: '{#IFNAME}'
+              path: $.name
+            - lld_macro: '{#IFTYPE}'
+              path: $.type
+            - lld_macro: '{#INDEX}'
+              path: '$.[".id"]'
+            - lld_macro: '{#RUNNING}'
+              path: $.running
+        - uuid: 9e294d1dbd0243708489c28874041d61
+          name: 'Interface ethernet discovery'
+          type: DEPENDENT
+          key: interface.ethernet.discovery
+          item_prototypes:
+            - uuid: d16df08303ce4b99af1bacfe351dfe3d
+              name: 'Interface ethernet {#IFNAME} driver-rx-byte'
+              type: DEPENDENT
+              key: 'interface.ethernet.[{#IFNAME}.driver-rx-byte]'
+              trends: '0'
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["driver-rx-byte"].first()'
+              master_item:
+                key: interface.ethernet
+            - uuid: 89ae3b3367fd4c9ab56596e66ec2bdc7
+              name: 'Interface ethernet {#IFNAME} driver-rx-packet'
+              type: DEPENDENT
+              key: 'interface.ethernet.[{#IFNAME}.driver-rx-packet]'
+              trends: '0'
+              units: pkt
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["driver-rx-packet"].first()'
+              master_item:
+                key: interface.ethernet
+            - uuid: 1fff2bce9fef4c9090a339c9bc4d0288
+              name: 'Interface ethernet {#IFNAME} driver-tx-byte'
+              type: DEPENDENT
+              key: 'interface.ethernet.[{#IFNAME}.driver-tx-byte]'
+              trends: '0'
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["driver-tx-byte"].first()'
+              master_item:
+                key: interface.ethernet
+            - uuid: eb907f04ee1644929a760f68b492759d
+              name: 'Interface ethernet {#IFNAME} driver-tx-packet'
+              type: DEPENDENT
+              key: 'interface.ethernet.[{#IFNAME}.driver-tx-packet]'
+              trends: '0'
+              units: pkt
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["driver-tx-packet"].first()'
+              master_item:
+                key: interface.ethernet
+            - uuid: 6b915db1a6a040daab8ceec9ca8ff5b2
+              name: 'Interface ethernet {#IFNAME} rx-broadcast'
+              type: DEPENDENT
+              key: 'interface.ethernet.[{#IFNAME}.rx-broadcast]'
+              trends: '0'
+              units: pkt
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["rx-broadcast"].first()'
+              master_item:
+                key: interface.ethernet
+            - uuid: de91b9c4a8ac44f38a7b6c18e17b07f8
+              name: 'Interface ethernet {#IFNAME} rx-bytes'
+              type: DEPENDENT
+              key: 'interface.ethernet.[{#IFNAME}.rx-bytes]'
+              trends: '0'
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["rx-bytes"].first()'
+              master_item:
+                key: interface.ethernet
+            - uuid: 4d81be8cd88c41a190f9bedfb0a14432
+              name: 'Interface ethernet {#IFNAME} rx-error-events'
+              type: DEPENDENT
+              key: 'interface.ethernet.[{#IFNAME}.rx-error-eventst]'
+              trends: '0'
+              units: evts
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["rx-error-events"].first()'
+              master_item:
+                key: interface.ethernet
+            - uuid: aa47cc85a5634552b4a683cc5c88c141
+              name: 'Interface ethernet {#IFNAME} rx-fcs-error'
+              type: DEPENDENT
+              key: 'interface.ethernet.[{#IFNAME}.rx-fcs-error]'
+              trends: '0'
+              units: evts
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["rx-fcs-error"].first()'
+              master_item:
+                key: interface.ethernet
+            - uuid: 91d5036fd8ed455891fb7bc220dad6a7
+              name: 'Interface ethernet {#IFNAME} rx-multicast'
+              type: DEPENDENT
+              key: 'interface.ethernet.[{#IFNAME}.rx-multicast]'
+              trends: '0'
+              units: pkt
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["rx-multicast"].first()'
+              master_item:
+                key: interface.ethernet
+            - uuid: 268042991538464a8364434aad486422
+              name: 'Interface ethernet {#IFNAME} tx-broadcast'
+              type: DEPENDENT
+              key: 'interface.ethernet.[{#IFNAME}.tx-broadcast]'
+              trends: '0'
+              units: pkt
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["tx-broadcast"].first()'
+              master_item:
+                key: interface.ethernet
+            - uuid: fa3afc7cdb6847f9a005240bd0b80f39
+              name: 'Interface ethernet {#IFNAME} tx-bytes'
+              type: DEPENDENT
+              key: 'interface.ethernet.[{#IFNAME}.tx-bytes]'
+              trends: '0'
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["tx-bytes"].first()'
+              master_item:
+                key: interface.ethernet
+            - uuid: 63a35c776aa84f949ebd1cb2f9841b81
+              name: 'Interface ethernet {#IFNAME} tx-fcs-error'
+              type: DEPENDENT
+              key: 'interface.ethernet.[{#IFNAME}.tx-fcs-error]'
+              trends: '0'
+              units: evts
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["tx-fcs-error"].first()'
+              master_item:
+                key: interface.ethernet
+          graph_prototypes:
+            - uuid: 60eff573fc754a198e9d1277f70db257
+              name: 'Interface ethernet {#IFNAME} stast:'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'interface.ethernet.[{#IFNAME}.rx-bytes]'
+                - sortorder: '1'
+                  color: '274482'
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'interface.ethernet.[{#IFNAME}.tx-bytes]'
+                - sortorder: '2'
+                  color: F63100
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'interface.ethernet.[{#IFNAME}.driver-rx-byte]'
+                - sortorder: '3'
+                  color: 2774A4
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'interface.ethernet.[{#IFNAME}.driver-tx-byte]'
+                - sortorder: '4'
+                  color: A54F10
+                  yaxisside: RIGHT
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'interface.ethernet.[{#IFNAME}.driver-rx-packet]'
+                - sortorder: '5'
+                  color: FC6EA3
+                  yaxisside: RIGHT
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'interface.ethernet.[{#IFNAME}.driver-tx-packet]'
+                - sortorder: '6'
+                  color: 6C59DC
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'interface.ethernet.[{#IFNAME}.rx-broadcast]'
+                - sortorder: '7'
+                  color: AC8C14
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'interface.ethernet.[{#IFNAME}.tx-broadcast]'
+          master_item:
+            key: interface.ethernet
+          lld_macro_paths:
+            - lld_macro: '{#IFNAME}'
+              path: $.name
+            - lld_macro: '{#INDEX}'
+              path: '$.[".id"]'
+        - uuid: 487c40c7f1ee4fb4a31f2291bab4601c
+          name: 'SFP interfaces discovery'
+          type: DEPENDENT
+          key: interface.ethernet.sfp.discovery
+          filter:
+            conditions:
+              - macro: '{#DEFAULTIFNAME}'
+                value: sfp
+          item_prototypes:
+            - uuid: c2609faf4e40443abf8be8539d0d0930
+              name: 'SFP module {#IFNAME} sfp-rx-power:'
+              type: DEPENDENT
+              key: 'interface.ethernet.sfp-module.[{#IFNAME}.sfp-rx-power]'
+              value_type: FLOAT
+              units: dBm
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0].["sfp-rx-power"]'
+              master_item:
+                key: 'interface.ethernet.sfp-module.[{#IFNAME}]'
+            - uuid: 571ea04c18424d31bef543a102f8ee06
+              name: 'SFP module {#IFNAME} sfp-temperature:'
+              type: DEPENDENT
+              key: 'interface.ethernet.sfp-module.[{#IFNAME}.sfp-temperature]'
+              value_type: FLOAT
+              units: °C
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0].["sfp-temperature"]'
+              master_item:
+                key: 'interface.ethernet.sfp-module.[{#IFNAME}]'
+            - uuid: 76a47ea2eb5648f48a93c79cdb951fff
+              name: 'SFP module {#IFNAME} sfp-tx-power:'
+              type: DEPENDENT
+              key: 'interface.ethernet.sfp-module.[{#IFNAME}.sfp-tx-power]'
+              value_type: FLOAT
+              units: dBm
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[0].["sfp-tx-power"]'
+              master_item:
+                key: 'interface.ethernet.sfp-module.[{#IFNAME}]'
+            - uuid: cb2a5369294c49a486b073f7c74bd3be
+              name: 'SFP module {#IFNAME}'
+              type: HTTP_AGENT
+              key: 'interface.ethernet.sfp-module.[{#IFNAME}]'
+              value_type: TEXT
+              authtype: BASIC
+              username: '{$REST_API_USER}'
+              password: '{$REST_API_PASSWORD}'
+              url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/interface/ethernet/monitor'
+              post_type: JSON
+              posts: '{ "numbers": "{#IFNAME}", "once":""}'
+              request_method: POST
+          graph_prototypes:
+            - uuid: 06ff3ab3edc140339f24bcab4a219510
+              name: 'SFP module interface {#IFNAME}'
+              yaxismax: '0'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'interface.ethernet.sfp-module.[{#IFNAME}.sfp-rx-power]'
+                - sortorder: '1'
+                  color: '274482'
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'interface.ethernet.sfp-module.[{#IFNAME}.sfp-tx-power]'
+                - sortorder: '2'
+                  color: F63100
+                  yaxisside: RIGHT
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'interface.ethernet.sfp-module.[{#IFNAME}.sfp-temperature]'
+          master_item:
+            key: interface.ethernet.sfp
+          lld_macro_paths:
+            - lld_macro: '{#DEFAULTIFNAME}'
+              path: '$.["default-name"]'
+            - lld_macro: '{#IFNAME}'
+              path: $.name
+        - uuid: 449587d8d4d24b7face1ac46db51ca36
+          name: 'Interface running discovery'
+          type: DEPENDENT
+          key: interface.running.discovery
+          item_prototypes:
+            - uuid: 7620dbe8fde542979d4a59775087d944
+              name: 'Interface {#IFNAME} running'
+              type: DEPENDENT
+              key: 'interface.[{#IFNAME}.running]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["running"].first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'false'
+              master_item:
+                key: interface
+              trigger_prototypes:
+                - uuid: 761bf5b9973d4bc3a4f41b9cbb307e85
+                  expression: 'last(/Mikrotik by REST API/interface.[{#IFNAME}.running],#2)="true" and last(/Mikrotik by REST API/interface.[{#IFNAME}.running],#1)="false"'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Mikrotik by REST API/interface.[{#IFNAME}.running],#1)="true"'
+                  name: 'Interface {#IFNAME} running'
+                  priority: WARNING
+                  manual_close: 'YES'
+          master_item:
+            key: interface
+          lld_macro_paths:
+            - lld_macro: '{#IFNAME}'
+              path: $.name
+            - lld_macro: '{#IFTYPE}'
+              path: $.type
+            - lld_macro: '{#INDEX}'
+              path: '$.[".id"]'
+            - lld_macro: '{#RUNNING}'
+              path: $.running
+        - uuid: 89009c25b56b49ccb92293a808be5fd3
+          name: 'BGP session discovery'
+          type: DEPENDENT
+          key: routing.bgp.session.discovery
+          item_prototypes:
+            - uuid: a4a37dbd48004054a4880db2d23071ca
+              name: 'BGP session {#NAME} established'
+              type: DEPENDENT
+              key: 'routing.bgp.session.[{#NAME}.established]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#ID}")].["established"].first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'false'
+              master_item:
+                key: routing.bgp.session
+              trigger_prototypes:
+                - uuid: fd9275b19a3a48279d056d73067e6019
+                  expression: 'last(/Mikrotik by REST API/routing.bgp.session.[{#NAME}.established],#1) = "false"'
+                  name: 'BGP established down {#NAME}: {#LOCALAS} -> {#REMOTEAS}'
+                  priority: HIGH
+                  manual_close: 'YES'
+            - uuid: e34d430794ab4d6ebde01c5f7a076380
+              name: 'BGP session {#NAME} local.bytes'
+              type: DEPENDENT
+              key: 'routing.bgp.session.[{#NAME}.local.bytes]'
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#ID}")].["local.bytes"].first()'
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              master_item:
+                key: routing.bgp.session
+            - uuid: 548d5d08993b4658bad12f5b827255e8
+              name: 'BGP session {#NAME} prefix-count'
+              type: DEPENDENT
+              key: 'routing.bgp.session.[{#NAME}.prefix-count]'
+              units: prefix
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#ID}")].["prefix-count"].first()'
+              master_item:
+                key: routing.bgp.session
+            - uuid: 5311f43244834d8ba564c41d3f161541
+              name: 'BGP session {#NAME} remote.bytes'
+              type: DEPENDENT
+              key: 'routing.bgp.session.[{#NAME}.remote.bytes]'
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#ID}")].["remote.bytes"].first()'
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              master_item:
+                key: routing.bgp.session
+            - uuid: d7d020f5963849c386ecb8bad89529e7
+              name: 'BGP session {#NAME} uptime'
+              type: DEPENDENT
+              key: 'routing.bgp.session.[{#NAME}.uptime]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#ID}")].["uptime"].first()'
+              master_item:
+                key: routing.bgp.session
+          graph_prototypes:
+            - uuid: 0bdce9e315a54cf9b85d96e817c9729c
+              name: 'BGP session {#NAME}: {#LOCALAS} -> {#REMOTEAS}'
+              graph_items:
+                - drawtype: BOLD_LINE
+                  color: 1A7C11
+                  yaxisside: RIGHT
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'routing.bgp.session.[{#NAME}.prefix-count]'
+                - sortorder: '1'
+                  drawtype: BOLD_LINE
+                  color: '274482'
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'routing.bgp.session.[{#NAME}.local.bytes]'
+                - sortorder: '2'
+                  drawtype: BOLD_LINE
+                  color: F63100
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'routing.bgp.session.[{#NAME}.remote.bytes]'
+          master_item:
+            key: routing.bgp.session
+          lld_macro_paths:
+            - lld_macro: '{#ID}'
+              path: '$.[".id"]'
+            - lld_macro: '{#LOCALAS}'
+              path: '$.["local.as"]'
+            - lld_macro: '{#NAME}'
+              path: $.name
+            - lld_macro: '{#REMOTEAS}'
+              path: '$.["remote.as"]'
+        - uuid: 96eeba3634974530883f8b892a6fcd75
+          name: 'CPU discovery'
+          type: DEPENDENT
+          key: system.resource.cpu.discovery
+          item_prototypes:
+            - uuid: 05fa174e649441d4876d0d2df98cd130
+              name: 'CPU {#CPU} load'
+              type: DEPENDENT
+              key: 'system.resource.cpu.[{#CPU}.load]'
+              units: '%'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["load"].first()'
+              master_item:
+                key: system.resource.cpu
+          graph_prototypes:
+            - uuid: 20caa42dbbb248f7aa7cc9cf653e1242
+              name: 'CPU {#CPU}:'
+              ymin_type_1: FIXED
+              ymax_type_1: FIXED
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'system.resource.cpu.[{#CPU}.load]'
+          master_item:
+            key: system.resource.cpu
+          lld_macro_paths:
+            - lld_macro: '{#CPU}'
+              path: $.cpu
+            - lld_macro: '{#INDEX}'
+              path: '$.[".id"]'
+      tags:
+        - tag: class
+          value: network
+        - tag: target
+          value: mikrotik
+      macros:
+        - macro: '{$REST_API_HOST}'
+          description: '*'
+        - macro: '{$REST_API_PASSWORD}'
+          type: SECRET_TEXT
+          description: '*'
+        - macro: '{$REST_API_PORT}'
+          value: '443'
+        - macro: '{$REST_API_PROTOCOL}'
+          value: https
+        - macro: '{$REST_API_USER}'
+          description: '*'
+      dashboards:
+        - uuid: a8dce6f3bafa41f49eee8f2c7901921b
+          name: 'Network interfaces'
+          pages:
+            - widgets:
+                - type: graphprototype
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '1'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Mikrotik by REST API'
+                        name: 'Interface {#IFNAME} network traffic'
+                    - type: STRING
+                      name: reference
+                      value: MNRTR
+                - type: graphprototype
+                  'y': '5'
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: INTEGER
+                      name: columns
+                      value: '1'
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Mikrotik by REST API'
+                        name: 'Interface ethernet {#IFNAME} stast:'
+                    - type: STRING
+                      name: reference
+                      value: MJGUT
+        - uuid: c2b8e81d2995442db56b9494fbadbc86
+          name: 'Network interfaces + SFP monitor'
+          pages:
+            - widgets:
+                - type: graphprototype
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Mikrotik by REST API'
+                        name: 'SFP module interface {#IFNAME}'
+                    - type: STRING
+                      name: reference
+                      value: KOKGB
+        - uuid: 94f09d7a1f764a10915a7521f09f498f
+          name: 'System resource'
+          pages:
+            - widgets:
+                - type: svggraph
+                  name: 'General resources'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: INTEGER
+                      name: ds.0.color_palette
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: CPU
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'Mikrotik: System resource cpu-load.'
+                    - type: INTEGER
+                      name: ds.1.color_palette
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.data_set_label
+                      value: 'Memory %'
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'Mikrotik: System resource memory utilization.'
+                    - type: INTEGER
+                      name: ds.2.axisy
+                      value: '1'
+                    - type: INTEGER
+                      name: ds.2.color_palette
+                      value: '10'
+                    - type: STRING
+                      name: ds.2.data_set_label
+                      value: 'Memory bytes'
+                    - type: INTEGER
+                      name: ds.2.fill
+                      value: '0'
+                    - type: STRING
+                      name: ds.2.items.0
+                      value: 'Mikrotik: System resource total-memory.'
+                    - type: STRING
+                      name: ds.2.items.1
+                      value: 'Mikrotik: System resource free-memory.'
+                    - type: STRING
+                      name: lefty_max
+                      value: '100'
+                    - type: STRING
+                      name: lefty_min
+                      value: '0'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '10'
+                    - type: INTEGER
+                      name: legend_lines_mode
+                      value: '1'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: ALXJI
+                - type: itemhistory
+                  name: 'ICMP response time'
+                  'y': '6'
+                  width: '18'
+                  height: '6'
+                  fields:
+                    - type: ITEM
+                      name: columns.0.itemid
+                      value:
+                        host: 'Mikrotik by REST API'
+                        key: 'icmppingsec[{$REST_API_HOST}]'
+                    - type: STRING
+                      name: columns.0.name
+                      value: 'ICMP response time'
+                    - type: STRING
+                      name: reference
+                      value: IWOJC
+                    - type: INTEGER
+                      name: show_column_header
+                      value: '1'
+                    - type: INTEGER
+                      name: show_timestamp
+                      value: '1'
+                - type: svggraph
+                  name: 'CPU cores'
+                  x: '36'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: INTEGER
+                      name: ds.0.color_palette
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: CPU
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'CPU cpu*'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '8'
+                    - type: INTEGER
+                      name: legend_lines_mode
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: KGWEV
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+      valuemaps:
+        - uuid: 21ee3d7377f04a56b2a34e5ed0cab952
+          name: 'Service state'
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+  graphs:
+    - uuid: 87a2bfbf6c69400cad5a9446b427bf56
+      name: 'Device memory'
+      ymin_type_1: FIXED
+      ymax_type_1: ITEM
+      ymax_item_1:
+        host: 'Mikrotik by REST API'
+        key: system.resource.total-memory
+      graph_items:
+        - color: 1A7C11
+          calc_fnc: ALL
+          item:
+            host: 'Mikrotik by REST API'
+            key: system.resource.free-memory
+        - sortorder: '1'
+          drawtype: BOLD_LINE
+          color: '274482'
+          calc_fnc: ALL
+          item:
+            host: 'Mikrotik by REST API'
+            key: system.resource.total-memory
