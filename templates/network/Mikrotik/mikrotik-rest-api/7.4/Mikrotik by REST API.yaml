@@ -67,6 +67,8 @@ zabbix_export:
           request_method: POST
           tags:
             - tag: component
+              value: interface
+            - tag: component
               value: json
         - uuid: 22bdc9205edc407e92a9dd11f68e13c3
           name: 'Mikrotik: REST API interface ethernet'
@@ -84,6 +86,10 @@ zabbix_export:
             }
           request_method: POST
           tags:
+            - tag: component
+              value: ethernet
+            - tag: component
+              value: interface
             - tag: component
               value: json
         - uuid: b127e666416c41eb9b40ec8a6c8d1364
@@ -105,7 +111,13 @@ zabbix_export:
           request_method: POST
           tags:
             - tag: component
+              value: ethernet
+            - tag: component
+              value: interface
+            - tag: component
               value: json
+            - tag: component
+              value: sfp
         - uuid: fa4675d5db1d4717a42b52e0b679c4c8
           name: 'Mikrotik: REST API ip firewall connection tracking'
           type: HTTP_AGENT
@@ -211,39 +223,6 @@ zabbix_export:
           tags:
             - tag: component
               value: json
-        - uuid: 17bb5ad9450345fcb7809bcd729a3062
-          name: 'Mikrotik: REST API routing BGP session list'
-          type: DEPENDENT
-          key: routing.bgp.session.list
-          value_type: TEXT
-          preprocessing:
-            - type: JAVASCRIPT
-              parameters:
-                - |
-                  var data = JSON.parse(value);
-                  
-                  var list = [];
-                  
-                  data.forEach(function(item) {
-                  	list.push(item.name);
-                  });
-                  
-                  var sessions = {"list": list, "count": list.length};
-                  
-                  return JSON.stringify(sessions);
-          master_item:
-            key: routing.bgp.session
-          tags:
-            - tag: component
-              value: json
-          triggers:
-            - uuid: 0c2729845acd4f46afc0ca0569f07b0b
-              expression: 'jsonpath(last(/Mikrotik by REST API/routing.bgp.session.list,#1), "$.count") < jsonpath(last(/Mikrotik by REST API/routing.bgp.session.list,#2), "$.count")'
-              recovery_mode: NONE
-              name: 'BGP closed session.'
-              opdata: 'Loss: {ITEM.LASTVALUE1}'
-              priority: HIGH
-              manual_close: 'YES'
         - uuid: b90273167fa5468792f1db66e387c427
           name: 'Mikrotik: REST API system health.'
           type: HTTP_AGENT
@@ -253,6 +232,9 @@ zabbix_export:
           username: '{$REST_API_USER}'
           password: '{$REST_API_PASSWORD}'
           url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/system/health'
+          tags:
+            - tag: component
+              value: json
         - uuid: 769b39a17f9c440cb83566b9f77f2f3d
           name: 'Mikrotik: REST API system identity.'
           type: HTTP_AGENT
@@ -268,6 +250,9 @@ zabbix_export:
               parameters:
                 - $.name
           url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/system/identity'
+          tags:
+            - tag: component
+              value: json
         - uuid: 671e9418a8fe4284888f1cb49d345747
           name: 'Mikrotik: Operating system'
           type: CALCULATED
@@ -276,8 +261,11 @@ zabbix_export:
           value_type: TEXT
           params: 'concat(last(//system.resource.platform), " RouterOS ", last(//system.resource.version), " ", last(//system.resource.board-name), ".")'
           inventory_link: OS
+          tags:
+            - tag: component
+              value: os
         - uuid: f16f475e095d4ee4bb32e7aa6bc67716
-          name: 'Mikrotik: REST API system resouce.'
+          name: 'Mikrotik: REST API system resource.'
           type: HTTP_AGENT
           key: system.resource
           value_type: TEXT
@@ -285,6 +273,9 @@ zabbix_export:
           username: '{$REST_API_USER}'
           password: '{$REST_API_PASSWORD}'
           url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/system/resource'
+          tags:
+            - tag: component
+              value: json
         - uuid: e9ab27bb9e444ff0a944f5c4b419747c
           name: 'Mikrotik: System resouce architecture-name.'
           type: DEPENDENT
@@ -317,6 +308,9 @@ zabbix_export:
           username: '{$REST_API_USER}'
           password: '{$REST_API_PASSWORD}'
           url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/system/resource/cpu'
+          tags:
+            - tag: component
+              value: json
         - uuid: 12f03188342f4b3c80787ae4345b8e53
           name: 'Mikrotik: System resource cpu-load.'
           type: DEPENDENT
@@ -429,6 +423,9 @@ zabbix_export:
           username: '{$REST_API_USER}'
           password: '{$REST_API_PASSWORD}'
           url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/system/routerboard'
+          tags:
+            - tag: component
+              value: json
         - uuid: 430ce1260c3a43688ad5ac7dc3f44f0a
           name: 'Mikrotik: System routerboard current-firmware.'
           type: DEPENDENT
@@ -472,6 +469,38 @@ zabbix_export:
                 - '$.["serial-number"]'
           master_item:
             key: system.routerboard
+        - uuid: 755fa2ad93434170a3bda5d7404d5f22
+          name: 'Mikrotik: System routerboard type.'
+          type: DEPENDENT
+          key: system.routerboard.type
+          value_type: TEXT
+          inventory_link: TYPE
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var result;
+                  
+                  switch (true) {
+                      case /^CCR/.test(value):
+                          result = "Cloud Core Router";
+                          break;
+                      case /^CRS/.test(value):
+                          result = "Cloud Router Switch";
+                          break;
+                      case /^RB/.test(value):
+                          result = "Routerboard";
+                          break;
+                      case /hAP/.test(value):
+                          result = "Home Router AP";
+                          break;
+                      default:
+                          result = "undefined";
+                  }
+                  
+                  return result;
+          master_item:
+            key: system.routerboard.hardware
         - uuid: ae5a594e83024d89934acbab41c9b255
           name: 'Mikrotik: System routerboard upgrade-firmware.'
           type: DEPENDENT
@@ -523,7 +552,30 @@ zabbix_export:
             conditions:
               - macro: '{#RUNNING}'
                 value: 'true'
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 1d
           item_prototypes:
+            - uuid: 29a1f714e6e54b9ab5739db4bd7c53ea
+              name: 'Interface {#IFNAME} running'
+              type: DEPENDENT
+              key: 'interface.[{#IFNAME}.running]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["running"].first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: 'false'
+              master_item:
+                key: interface
+              trigger_prototypes:
+                - uuid: 2723f273d56a4834ad7c8aec6400a0ed
+                  expression: 'last(/Mikrotik by REST API/interface.[{#IFNAME}.running],#2)="true" and last(/Mikrotik by REST API/interface.[{#IFNAME}.running],#1)="false"'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Mikrotik by REST API/interface.[{#IFNAME}.running],#1)="true"'
+                  name: 'Interface {#IFNAME} running'
+                  priority: WARNING
+                  manual_close: 'YES'
             - uuid: a7c940beac5f417fbe6454965136242e
               name: 'Interface {#IFNAME} rx-byte'
               type: DEPENDENT
@@ -878,47 +930,12 @@ zabbix_export:
               path: '$.["default-name"]'
             - lld_macro: '{#IFNAME}'
               path: $.name
-        - uuid: 449587d8d4d24b7face1ac46db51ca36
-          name: 'Interface running discovery'
-          type: DEPENDENT
-          key: interface.running.discovery
-          item_prototypes:
-            - uuid: 7620dbe8fde542979d4a59775087d944
-              name: 'Interface {#IFNAME} running'
-              type: DEPENDENT
-              key: 'interface.[{#IFNAME}.running]'
-              value_type: TEXT
-              preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$.[?(@.[".id"] == "{#INDEX}")].["running"].first()'
-                  error_handler: CUSTOM_VALUE
-                  error_handler_params: 'false'
-              master_item:
-                key: interface
-              trigger_prototypes:
-                - uuid: 761bf5b9973d4bc3a4f41b9cbb307e85
-                  expression: 'last(/Mikrotik by REST API/interface.[{#IFNAME}.running],#2)="true" and last(/Mikrotik by REST API/interface.[{#IFNAME}.running],#1)="false"'
-                  recovery_mode: RECOVERY_EXPRESSION
-                  recovery_expression: 'last(/Mikrotik by REST API/interface.[{#IFNAME}.running],#1)="true"'
-                  name: 'Interface {#IFNAME} running'
-                  priority: WARNING
-                  manual_close: 'YES'
-          master_item:
-            key: interface
-          lld_macro_paths:
-            - lld_macro: '{#IFNAME}'
-              path: $.name
-            - lld_macro: '{#IFTYPE}'
-              path: $.type
-            - lld_macro: '{#INDEX}'
-              path: '$.[".id"]'
-            - lld_macro: '{#RUNNING}'
-              path: $.running
         - uuid: 89009c25b56b49ccb92293a808be5fd3
           name: 'BGP session discovery'
           type: DEPENDENT
           key: routing.bgp.session.discovery
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 1d
           item_prototypes:
             - uuid: a4a37dbd48004054a4880db2d23071ca
               name: 'BGP session {#NAME} established'
