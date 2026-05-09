@@ -106,6 +106,84 @@ zabbix_export:
           tags:
             - tag: component
               value: json
+        - uuid: fa4675d5db1d4717a42b52e0b679c4c8
+          name: 'Mikrotik: REST API ip firewall connection tracking'
+          type: HTTP_AGENT
+          key: ip.firewall.connection.tracking
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$REST_API_USER}'
+          password: '{$REST_API_PASSWORD}'
+          url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/ip/firewall/connection/tracking/print'
+          post_type: JSON
+          posts: |
+            {
+                ".proplist" : "max-entries,total-entries,total-ip4-entries,total-ip6-entries"
+            }
+          request_method: POST
+          tags:
+            - tag: component
+              value: json
+        - uuid: 6f77c8c878604bed803a6fda85af80b0
+          name: 'Mikrotik: REST API ip firewall connection tracking max-entries'
+          type: DEPENDENT
+          key: ip.firewall.connection.tracking.max-entries
+          trends: '0'
+          units: ents
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[0].["max-entries"]'
+          master_item:
+            key: ip.firewall.connection.tracking
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: 6fa03008629149c68e1800979d46b278
+          name: 'Mikrotik: REST API ip firewall connection tracking total-entries'
+          type: DEPENDENT
+          key: ip.firewall.connection.tracking.total-entries
+          trends: '0'
+          units: ents
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[0].["total-entries"]'
+          master_item:
+            key: ip.firewall.connection.tracking
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: 246eb59d74dd40a4a54964802f8f380d
+          name: 'Mikrotik: REST API ip firewall connection tracking total-ip4-entries'
+          type: DEPENDENT
+          key: ip.firewall.connection.tracking.total-ip4-entries
+          trends: '0'
+          units: ents
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[0].["total-ip4-entries"]'
+          master_item:
+            key: ip.firewall.connection.tracking
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: 4b161115315c429ab8af78d0619692e8
+          name: 'Mikrotik: REST API ip firewall connection tracking total-ip6-entries'
+          type: DEPENDENT
+          key: ip.firewall.connection.tracking.total-ip6-entries
+          trends: '0'
+          units: ents
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[0].["total-ip6-entries"]'
+          master_item:
+            key: ip.firewall.connection.tracking
+          tags:
+            - tag: component
+              value: firewall
         - uuid: ea687099353c4f8bb66d8d03b61081c1
           name: 'Mikrotik: REST API routing BGP session'
           type: HTTP_AGENT
@@ -166,6 +244,15 @@ zabbix_export:
               opdata: 'Loss: {ITEM.LASTVALUE1}'
               priority: HIGH
               manual_close: 'YES'
+        - uuid: b90273167fa5468792f1db66e387c427
+          name: 'Mikrotik: REST API system health.'
+          type: HTTP_AGENT
+          key: system.health
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$REST_API_USER}'
+          password: '{$REST_API_PASSWORD}'
+          url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/system/health'
         - uuid: 769b39a17f9c440cb83566b9f77f2f3d
           name: 'Mikrotik: REST API system identity.'
           type: HTTP_AGENT
@@ -181,6 +268,14 @@ zabbix_export:
               parameters:
                 - $.name
           url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/system/identity'
+        - uuid: 671e9418a8fe4284888f1cb49d345747
+          name: 'Mikrotik: Operating system'
+          type: CALCULATED
+          key: system.os
+          delay: 15m
+          value_type: TEXT
+          params: 'concat(last(//system.resource.platform), " RouterOS ", last(//system.resource.version), " ", last(//system.resource.board-name), ".")'
+          inventory_link: OS
         - uuid: f16f475e095d4ee4bb32e7aa6bc67716
           name: 'Mikrotik: REST API system resouce.'
           type: HTTP_AGENT
@@ -233,6 +328,17 @@ zabbix_export:
                 - '$.["cpu-load"]'
           master_item:
             key: system.resource
+        - uuid: 23e0096387954ac69a72174b8309ae43
+          name: 'Mikrotik: System resource free-hdd-space.'
+          type: DEPENDENT
+          key: system.resource.free-hdd-space
+          units: B
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.["free-hdd-space"]'
+          master_item:
+            key: system.resource
         - uuid: 6681349b61ec46d9b5a0ebdb64d54600
           name: 'Mikrotik: System resource free-memory.'
           type: DEPENDENT
@@ -244,6 +350,12 @@ zabbix_export:
                 - '$.["free-memory"]'
           master_item:
             key: system.resource
+        - uuid: a54d0563f30146c0b625226f916ad8c6
+          name: 'Mikrotik: System resource hdd space utilization.'
+          type: CALCULATED
+          key: system.resource.hdd-space-utilization
+          units: '%'
+          params: '(last(//system.resource.total-hdd-space)-last(//system.resource.free-hdd-space))*100/last(//system.resource.total-hdd-space)'
         - uuid: 37c1634dda2b4722ad9b767c852c19c4
           name: 'Mikrotik: System resource memory utilization.'
           type: CALCULATED
@@ -262,6 +374,17 @@ zabbix_export:
                 - $.platform
           master_item:
             key: system.resource
+        - uuid: 0efd34703340497a821f0078e186da36
+          name: 'Mikrotik: System resource total-hdd-space.'
+          type: DEPENDENT
+          key: system.resource.total-hdd-space
+          units: B
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.["total-hdd-space"]'
+          master_item:
+            key: system.resource
         - uuid: 4a487e401ce14de9800a2c1ff3fe2128
           name: 'Mikrotik: System resource total-memory.'
           type: DEPENDENT
@@ -272,6 +395,28 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.["total-memory"]'
+          master_item:
+            key: system.resource
+        - uuid: d51ba84b565c44f99f7255a444560e0b
+          name: 'Mikrotik: System resource uptime.'
+          type: DEPENDENT
+          key: system.resource.uptime
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.uptime
+          master_item:
+            key: system.resource
+        - uuid: ee48b5d1ccaa4ac691aef688aa230a6e
+          name: 'Mikrotik: System resource version.'
+          type: DEPENDENT
+          key: system.resource.version
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.version
           master_item:
             key: system.resource
         - uuid: 56cbb493a71a4b7cb0e842c9a59eafbb
@@ -880,6 +1025,44 @@ zabbix_export:
               path: $.name
             - lld_macro: '{#REMOTEAS}'
               path: '$.["remote.as"]'
+        - uuid: 035a42b0f277469a84e8a6f82f4079fc
+          name: 'Health discovery'
+          type: DEPENDENT
+          key: system.health.discovery
+          filter:
+            conditions:
+              - macro: '{#TYPE}'
+                value: C|W|V|RPM
+          item_prototypes:
+            - uuid: 98af9015fe3543638ccf79badba5803a
+              name: 'System health {#NAME}'
+              type: DEPENDENT
+              key: 'system.health.[{#NAME}]'
+              value_type: FLOAT
+              trends: '0'
+              units: '{#TYPE}'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#INDEX}")].["value"].first()'
+              master_item:
+                key: system.health
+              trigger_prototypes:
+                - uuid: fb5e40b8e0cb4d1eaeef589a36380910
+                  expression: 'last(/Mikrotik by REST API/system.health.[{#NAME}])>=85 and {#TYPE} = "C"'
+                  name: 'System health temperature {#NAME}'
+                  priority: WARNING
+          master_item:
+            key: system.health
+          lld_macro_paths:
+            - lld_macro: '{#INDEX}'
+              path: '$.[".id"]'
+            - lld_macro: '{#NAME}'
+              path: $.name
+            - lld_macro: '{#TYPE}'
+              path: $.type
+            - lld_macro: '{#VALUE}'
+              path: $.value
         - uuid: 96eeba3634974530883f8b892a6fcd75
           name: 'CPU discovery'
           type: DEPENDENT
@@ -983,6 +1166,112 @@ zabbix_export:
                     - type: STRING
                       name: reference
                       value: KOKGB
+        - uuid: b447c483e5d246399f0e61d871131a1c
+          name: 'System health'
+          pages:
+            - widgets:
+                - type: svggraph
+                  name: 'System temperature'
+                  width: '72'
+                  height: '7'
+                  fields:
+                    - type: INTEGER
+                      name: ds.0.color_palette
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: 'System temperature'
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '1'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'System health*temperature*'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '10'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: ERCVS
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: svggraph
+                  name: 'Fan speed'
+                  'y': '7'
+                  width: '36'
+                  height: '7'
+                  fields:
+                    - type: INTEGER
+                      name: ds.0.color_palette
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: 'Fan speed'
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '1'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'System health*fan*speed*'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '10'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: OSLAF
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: svggraph
+                  name: 'System voltage / watts'
+                  x: '36'
+                  'y': '7'
+                  width: '36'
+                  height: '7'
+                  fields:
+                    - type: INTEGER
+                      name: ds.0.color_palette
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: Voltage
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '1'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'System health*voltage*'
+                    - type: INTEGER
+                      name: ds.1.axisy
+                      value: '1'
+                    - type: INTEGER
+                      name: ds.1.color_palette
+                      value: '1'
+                    - type: STRING
+                      name: ds.1.data_set_label
+                      value: Watts
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '1'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'System health*power*'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '8'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: VWQFE
         - uuid: 94f09d7a1f764a10915a7521f09f498f
           name: 'System resource'
           pages:
@@ -1049,28 +1338,127 @@ zabbix_export:
                     - type: STRING
                       name: reference
                       value: ALXJI
-                - type: itemhistory
-                  name: 'ICMP response time'
+                - type: svggraph
+                  name: 'HDD space'
                   'y': '6'
-                  width: '18'
+                  width: '36'
                   height: '6'
                   fields:
+                    - type: STRING
+                      name: ds.0.color.0
+                      value: FFD54F
+                    - type: INTEGER
+                      name: ds.0.dataset_type
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: 'HDD utilization'
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '2'
                     - type: ITEM
-                      name: columns.0.itemid
+                      name: ds.0.itemids.0
                       value:
                         host: 'Mikrotik by REST API'
-                        key: 'icmppingsec[{$REST_API_HOST}]'
+                        key: system.resource.hdd-space-utilization
+                    - type: INTEGER
+                      name: ds.1.axisy
+                      value: '1'
                     - type: STRING
-                      name: columns.0.name
-                      value: 'ICMP response time'
+                      name: ds.1.color.0
+                      value: 0EC9AC
+                    - type: STRING
+                      name: ds.1.color.1
+                      value: 524BBC
+                    - type: INTEGER
+                      name: ds.1.dataset_type
+                      value: '0'
+                    - type: STRING
+                      name: ds.1.data_set_label
+                      value: 'HDD space'
+                    - type: INTEGER
+                      name: ds.1.fill
+                      value: '1'
+                    - type: ITEM
+                      name: ds.1.itemids.0
+                      value:
+                        host: 'Mikrotik by REST API'
+                        key: system.resource.free-hdd-space
+                    - type: ITEM
+                      name: ds.1.itemids.1
+                      value:
+                        host: 'Mikrotik by REST API'
+                        key: system.resource.total-hdd-space
+                    - type: STRING
+                      name: lefty_max
+                      value: '100'
+                    - type: STRING
+                      name: lefty_min
+                      value: '0'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
                     - type: STRING
                       name: reference
-                      value: IWOJC
+                      value: YMHRG
+                - type: hostcard
+                  'y': '12'
+                  width: '24'
+                  height: '6'
+                  fields:
                     - type: INTEGER
-                      name: show_column_header
+                      name: sections.0
+                      value: '2'
+                    - type: INTEGER
+                      name: sections.1
+                      value: '4'
+                    - type: INTEGER
+                      name: sections.2
+                      value: '6'
+                    - type: INTEGER
+                      name: sections.3
+                      value: '7'
+                    - type: INTEGER
+                      name: show_suppressed
+                      value: '1'
+                - type: problemsbysv
+                  x: '24'
+                  'y': '12'
+                  width: '30'
+                  height: '6'
+                  fields:
+                    - type: INTEGER
+                      name: layout
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: EVXKK
+                    - type: INTEGER
+                      name: severities.0
+                      value: '0'
+                    - type: INTEGER
+                      name: severities.1
                       value: '1'
                     - type: INTEGER
-                      name: show_timestamp
+                      name: severities.2
+                      value: '2'
+                    - type: INTEGER
+                      name: severities.3
+                      value: '3'
+                    - type: INTEGER
+                      name: severities.4
+                      value: '4'
+                    - type: INTEGER
+                      name: severities.5
+                      value: '5'
+                    - type: INTEGER
+                      name: show_opdata
+                      value: '2'
+                    - type: INTEGER
+                      name: show_suppressed
                       value: '1'
                 - type: svggraph
                   name: 'CPU cores'
@@ -1099,6 +1487,73 @@ zabbix_export:
                     - type: INTEGER
                       name: righty
                       value: '0'
+                - type: svggraph
+                  name: 'Firewall entries'
+                  x: '36'
+                  'y': '6'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: INTEGER
+                      name: ds.0.color_palette
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: Firewall
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '1'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'Mikrotik: REST API ip firewall connection tracking max-entries'
+                    - type: STRING
+                      name: ds.0.items.1
+                      value: 'Mikrotik: REST API ip firewall connection tracking total-entries'
+                    - type: STRING
+                      name: ds.0.items.2
+                      value: 'Mikrotik: REST API ip firewall connection tracking total-ip4-entries'
+                    - type: STRING
+                      name: ds.0.items.3
+                      value: 'Mikrotik: REST API ip firewall connection tracking total-ip6-entries'
+                    - type: INTEGER
+                      name: lefty_scale
+                      value: '1'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '4'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: LDTPI
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: itemhistory
+                  name: 'ICMP response time'
+                  x: '54'
+                  'y': '12'
+                  width: '18'
+                  height: '6'
+                  fields:
+                    - type: ITEM
+                      name: columns.0.itemid
+                      value:
+                        host: 'Mikrotik by REST API'
+                        key: 'icmppingsec[{$REST_API_HOST}]'
+                    - type: STRING
+                      name: columns.0.name
+                      value: 'ICMP response time'
+                    - type: STRING
+                      name: reference
+                      value: IWOJC
+                    - type: INTEGER
+                      name: show_column_header
+                      value: '1'
+                    - type: INTEGER
+                      name: show_timestamp
+                      value: '1'
       valuemaps:
         - uuid: 21ee3d7377f04a56b2a34e5ed0cab952
           name: 'Service state'
