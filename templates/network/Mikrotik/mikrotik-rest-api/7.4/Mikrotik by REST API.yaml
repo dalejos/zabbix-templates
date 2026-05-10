@@ -1,5 +1,5 @@
 zabbix_export:
-  version: '7.4'
+  version: '7.0'
   template_groups:
     - uuid: 36bff6c29af64692839d077febfc7079
       name: 'Templates/Network devices'
@@ -223,6 +223,205 @@ zabbix_export:
           tags:
             - tag: component
               value: json
+        - uuid: da62b3f72647404ca69a066e1ad8ffb9
+          name: 'Mikrotik: REST API routing OSPFv2 instances'
+          type: HTTP_AGENT
+          key: routing.ospf.instance.v2
+          delay: 5m
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$REST_API_USER}'
+          password: '{$REST_API_PASSWORD}'
+          url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/routing/ospf/instance/print'
+          post_type: JSON
+          posts: |
+            {
+                ".query":["version=2"],
+                ".proplist" : ".id,name,router-id,version,vrf,redistribute,originate-default"
+            }
+          request_method: POST
+          tags:
+            - tag: component
+              value: json
+            - tag: component
+              value: ospf
+        - uuid: a10d9cf434f04bacb726c0ce66f613eb
+          name: 'Mikrotik: REST API routing OSPFv2 neighbors'
+          type: HTTP_AGENT
+          key: routing.ospf.neighbor
+          delay: 30s
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$REST_API_USER}'
+          password: '{$REST_API_PASSWORD}'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var instanceFilter = '{$OSPFV2_INSTANCE.MATCHES}';
+                  var instanceRegex;
+                  
+                  try {
+                      instanceRegex = new RegExp(instanceFilter);
+                  } catch (error) {
+                      instanceRegex = /.*/;
+                  }
+                  
+                  data = data.filter(function (item) {
+                      return !item.instance || instanceRegex.test(item.instance);
+                  });
+                  
+                  data.forEach(function (item) {
+                      if (!('state' in item)) {
+                          item.state = 'down';
+                      }
+                  
+                      item.state = String(item.state).toLowerCase();
+                  
+                      item.discovery_key = String(item['.id'] || item['router-id'] || item.address || '')
+                          .replace(/[^A-Za-z0-9_.-]/g, '_');
+                  });
+                  
+                  return JSON.stringify(data);
+          url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/routing/ospf/neighbor/print'
+          post_type: JSON
+          posts: |
+            {
+                ".proplist" : ".id,address,router-id,state,state-changes,adjacency,area,instance,priority,dr,bdr,db-summaries,ls-requests,ls-retransmits"
+            }
+          request_method: POST
+          tags:
+            - tag: component
+              value: json
+            - tag: component
+              value: ospf
+        - uuid: 59145d99ca52404fa44ea0aabb53e396
+          name: 'Mikrotik: Routing OSPFv2 neighbor count'
+          type: DEPENDENT
+          key: routing.ospf.neighbor.count
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  return JSON.parse(value).length;
+          master_item:
+            key: routing.ospf.neighbor
+          tags:
+            - tag: component
+              value: ospf
+        - uuid: 2d48e31722284e4d8c0193855f0bdf9e
+          name: 'Mikrotik: Routing OSPFv2 neighbors not full'
+          type: DEPENDENT
+          key: routing.ospf.neighbor.not-full.count
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  
+                  return data.filter(function (item) {
+                      return item.state !== 'full';
+                  }).length;
+          master_item:
+            key: routing.ospf.neighbor
+          tags:
+            - tag: component
+              value: ospf
+          triggers:
+            - uuid: 3cd7ab7084ca41ec977931ee207a06e8
+              expression: 'last(/Mikrotik by REST API/routing.ospf.neighbor.not-full.count)>0'
+              name: 'OSPFv2 has neighbors that are not full'
+              priority: HIGH
+              manual_close: 'YES'
+        - uuid: ee2b3c07016e4b228078556672670035
+          name: 'Mikrotik: REST API routing OSPFv2 LSA summary'
+          type: HTTP_AGENT
+          key: routing.ospf.lsa.summary
+          delay: 5m
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$REST_API_USER}'
+          password: '{$REST_API_PASSWORD}'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var instanceFilter = '{$OSPFV2_INSTANCE.MATCHES}';
+                  var instanceRegex;
+                  var result = {};
+                  
+                  try {
+                      instanceRegex = new RegExp(instanceFilter);
+                  } catch (error) {
+                      instanceRegex = /.*/;
+                  }
+                  
+                  data.forEach(function (item) {
+                      if (item.instance && !instanceRegex.test(item.instance)) {
+                          return;
+                      }
+                  
+                      var key = [item.instance || '', item.area || '', item.type || 'unknown'].join('|');
+                      
+                      if (!result[key]) {
+                          result[key] = {
+                              discovery_key: key.replace(/[^A-Za-z0-9_.-]/g, '_'),
+                              instance: item.instance || '',
+                              area: item.area || '',
+                              type: item.type || 'unknown',
+                              count: 0,
+                              self_originated_count: 0,
+                              max_age: 0
+                          };
+                      }
+                  
+                      result[key].count++;
+                  
+                      if (item['self-originated'] === 'yes' || item['self-originated'] === true) {
+                          result[key].self_originated_count++;
+                      }
+                  
+                      var age = Number(item.age || 0);
+                      if (age > result[key].max_age) {
+                          result[key].max_age = age;
+                      }
+                  });
+                  
+                  return JSON.stringify(Object.keys(result).map(function (key) {
+                      return result[key];
+                  }));
+          url: '{$REST_API_PROTOCOL}://{$REST_API_HOST}:{$REST_API_PORT}/rest/routing/ospf/lsa/print'
+          post_type: JSON
+          posts: |
+            {
+                ".proplist" : ".id,age,area,instance,self-originated,type"
+            }
+          request_method: POST
+          tags:
+            - tag: component
+              value: json
+            - tag: component
+              value: ospf
+        - uuid: 599273ac13fd477282e788536033c96e
+          name: 'Mikrotik: Routing OSPFv2 LSA count'
+          type: DEPENDENT
+          key: routing.ospf.lsa.count
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  
+                  return data.reduce(function (sum, item) {
+                      return sum + Number(item.count || 0);
+                  }, 0);
+          master_item:
+            key: routing.ospf.lsa.summary
+          tags:
+            - tag: component
+              value: ospf
         - uuid: b90273167fa5468792f1db66e387c427
           name: 'Mikrotik: REST API system health.'
           type: HTTP_AGENT
@@ -1042,6 +1241,193 @@ zabbix_export:
               path: $.name
             - lld_macro: '{#REMOTEAS}'
               path: '$.["remote.as"]'
+        - uuid: ca0e7c705dba4b9a91a86315a877f9c6
+          name: 'OSPFv2 neighbor discovery'
+          type: DEPENDENT
+          key: routing.ospf.neighbor.discovery
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 1d
+          item_prototypes:
+            - uuid: b7dac8bfcac3433dad86ab8eb87d184f
+              name: 'OSPFv2 neighbor {#ROUTERID} state'
+              type: DEPENDENT
+              key: 'routing.ospf.neighbor.[{#OSPFKEY}.state]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#OSPFID}")].["state"].first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: down
+              master_item:
+                key: routing.ospf.neighbor
+              trigger_prototypes:
+                - uuid: f4ff2f9911a14e18ac8a79a7e5f45af2
+                  expression: 'last(/Mikrotik by REST API/routing.ospf.neighbor.[{#OSPFKEY}.state])<>"full"'
+                  name: 'OSPFv2 neighbor {#ROUTERID} is not full'
+                  priority: HIGH
+                  manual_close: 'YES'
+            - uuid: 9c6c0a679a2448808dad50f66080ce3c
+              name: 'OSPFv2 neighbor {#ROUTERID} adjacency'
+              type: DEPENDENT
+              key: 'routing.ospf.neighbor.[{#OSPFKEY}.adjacency]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#OSPFID}")].["adjacency"].first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0s'
+              master_item:
+                key: routing.ospf.neighbor
+            - uuid: 4d83e47a1bfe455abeb388eb02726716
+              name: 'OSPFv2 neighbor {#ROUTERID} state changes'
+              type: DEPENDENT
+              key: 'routing.ospf.neighbor.[{#OSPFKEY}.state-changes]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#OSPFID}")].["state-changes"].first()'
+              master_item:
+                key: routing.ospf.neighbor
+            - uuid: 1acab980114f4aecad6faeac4c3302fe
+              name: 'OSPFv2 neighbor {#ROUTERID} DB summaries'
+              type: DEPENDENT
+              key: 'routing.ospf.neighbor.[{#OSPFKEY}.db-summaries]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#OSPFID}")].["db-summaries"].first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: routing.ospf.neighbor
+            - uuid: 2dd343605798401da7c04fad74fa3f86
+              name: 'OSPFv2 neighbor {#ROUTERID} LS requests'
+              type: DEPENDENT
+              key: 'routing.ospf.neighbor.[{#OSPFKEY}.ls-requests]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#OSPFID}")].["ls-requests"].first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: routing.ospf.neighbor
+            - uuid: e20efbc7f2a04ad980409cd307fab8b5
+              name: 'OSPFv2 neighbor {#ROUTERID} LS retransmits'
+              type: DEPENDENT
+              key: 'routing.ospf.neighbor.[{#OSPFKEY}.ls-retransmits]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.[".id"] == "{#OSPFID}")].["ls-retransmits"].first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: routing.ospf.neighbor
+          graph_prototypes:
+            - uuid: 64cfd49c91824888be968fd009a5691a
+              name: 'OSPFv2 neighbor {#ROUTERID} link-state queues'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'routing.ospf.neighbor.[{#OSPFKEY}.db-summaries]'
+                - sortorder: '1'
+                  color: F63100
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'routing.ospf.neighbor.[{#OSPFKEY}.ls-requests]'
+                - sortorder: '2'
+                  color: '274482'
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'routing.ospf.neighbor.[{#OSPFKEY}.ls-retransmits]'
+          master_item:
+            key: routing.ospf.neighbor
+          lld_macro_paths:
+            - lld_macro: '{#ADDRESS}'
+              path: $.address
+            - lld_macro: '{#AREA}'
+              path: $.area
+            - lld_macro: '{#INSTANCE}'
+              path: $.instance
+            - lld_macro: '{#OSPFID}'
+              path: '$.[".id"]'
+            - lld_macro: '{#OSPFKEY}'
+              path: $.discovery_key
+            - lld_macro: '{#ROUTERID}'
+              path: '$.["router-id"]'
+            - lld_macro: '{#STATE}'
+              path: $.state
+        - uuid: 5fff8101694346ed9015f4f557379a5c
+          name: 'OSPFv2 LSA type discovery'
+          type: DEPENDENT
+          key: routing.ospf.lsa.discovery
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 1d
+          item_prototypes:
+            - uuid: 786117502fa443cebf3450a0c8561306
+              name: 'OSPFv2 LSA {#LSATYPE} count in {#AREA}'
+              type: DEPENDENT
+              key: 'routing.ospf.lsa.[{#LSAKEY}.count]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.discovery_key == "{#LSAKEY}")].count.first()'
+              master_item:
+                key: routing.ospf.lsa.summary
+            - uuid: 972e123a45124463b40af75e095eb619
+              name: 'OSPFv2 LSA {#LSATYPE} self-originated count in {#AREA}'
+              type: DEPENDENT
+              key: 'routing.ospf.lsa.[{#LSAKEY}.self-originated-count]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.discovery_key == "{#LSAKEY}")].self_originated_count.first()'
+              master_item:
+                key: routing.ospf.lsa.summary
+            - uuid: 050a6b9a82024effb716f39666262554
+              name: 'OSPFv2 LSA {#LSATYPE} max age in {#AREA}'
+              type: DEPENDENT
+              key: 'routing.ospf.lsa.[{#LSAKEY}.max-age]'
+              units: s
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.discovery_key == "{#LSAKEY}")].max_age.first()'
+              master_item:
+                key: routing.ospf.lsa.summary
+          graph_prototypes:
+            - uuid: 5f4e4e16ae2f42c082040c7fb7c5a070
+              name: 'OSPFv2 LSA {#LSATYPE} in {#AREA}'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'routing.ospf.lsa.[{#LSAKEY}.count]'
+                - sortorder: '1'
+                  color: F63100
+                  calc_fnc: ALL
+                  item:
+                    host: 'Mikrotik by REST API'
+                    key: 'routing.ospf.lsa.[{#LSAKEY}.self-originated-count]'
+          master_item:
+            key: routing.ospf.lsa.summary
+          lld_macro_paths:
+            - lld_macro: '{#AREA}'
+              path: $.area
+            - lld_macro: '{#INSTANCE}'
+              path: $.instance
+            - lld_macro: '{#LSAKEY}'
+              path: $.discovery_key
+            - lld_macro: '{#LSATYPE}'
+              path: $.type
         - uuid: 035a42b0f277469a84e8a6f82f4079fc
           name: 'Health discovery'
           type: DEPENDENT
@@ -1120,6 +1506,9 @@ zabbix_export:
         - tag: target
           value: mikrotik
       macros:
+        - macro: '{$OSPFV2_INSTANCE.MATCHES}'
+          value: .*
+          description: 'Regular expression for OSPFv2 instance names to monitor. RouterOS neighbor and LSA menus do not expose version directly, so narrow this when OSPFv3 is also present.'
         - macro: '{$REST_API_HOST}'
           description: '*'
         - macro: '{$REST_API_PASSWORD}'
@@ -1132,6 +1521,99 @@ zabbix_export:
         - macro: '{$REST_API_USER}'
           description: '*'
       dashboards:
+        - uuid: a311008ed48e4dd6aac303f1a61c859f
+          name: OSPFv2
+          pages:
+            - widgets:
+                - type: svggraph
+                  name: 'OSPFv2 neighbors'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: INTEGER
+                      name: ds.0.color_palette
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: Neighbors
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'Mikrotik: Routing OSPFv2 neighbor count'
+                    - type: INTEGER
+                      name: ds.1.color_palette
+                      value: '2'
+                    - type: STRING
+                      name: ds.1.data_set_label
+                      value: 'Not full'
+                    - type: STRING
+                      name: ds.1.items.0
+                      value: 'Mikrotik: Routing OSPFv2 neighbors not full'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '4'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: OSPFN
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: svggraph
+                  name: 'OSPFv2 LSAs'
+                  x: '36'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: INTEGER
+                      name: ds.0.color_palette
+                      value: '0'
+                    - type: STRING
+                      name: ds.0.data_set_label
+                      value: LSAs
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'Mikrotik: Routing OSPFv2 LSA count'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '4'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: OSPFL
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: graphprototype
+                  'y': '6'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Mikrotik by REST API'
+                        name: 'OSPFv2 neighbor {#ROUTERID} link-state queues'
+                    - type: STRING
+                      name: reference
+                      value: OSPFQ
+                - type: graphprototype
+                  x: '36'
+                  'y': '6'
+                  width: '36'
+                  height: '6'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Mikrotik by REST API'
+                        name: 'OSPFv2 LSA {#LSATYPE} in {#AREA}'
+                    - type: STRING
+                      name: reference
+                      value: OSPFA
         - uuid: a8dce6f3bafa41f49eee8f2c7901921b
           name: 'Network interfaces'
           pages:
