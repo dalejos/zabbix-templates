@@ -1,6 +1,20 @@
-# Mikrotik by REST API (v0.34)
+# Mikrotik by REST API (v0.39)
 
-Template para el monitoreo avanzado de dispositivos **Mikrotik** utilizando la **REST API** introducida en RouterOS v7. Ofrece una alternativa moderna al monitoreo por SNMP para recolectar metricas criticas de sistema, red, seguridad y routing.
+Template para el monitoreo avanzado de dispositivos **Mikrotik** utilizando la **REST API** de RouterOS v7. Esta solución ofrece una alternativa moderna y eficiente al monitoreo tradicional por SNMP.
+
+## 🚀 Nueva Arquitectura Modular (v0.39)
+
+A partir de la versión 0.39, hemos evolucionado hacia una **separación de templates por funcionalidad específica**. En lugar de un único archivo monolítico, el ecosistema se divide en módulos que puedes vincular según tus necesidades:
+
+* **Core/Health:** Monitoreo base de hardware, sensores y recursos.
+* **BGP Module:** Descubrimiento y métricas de sesiones de enrutamiento dinámico.
+* **OSPFv2 Module:** Soporte completo para RouterOS 7.20+ (vecinos, LSAs y estados).
+* **Log Trapper:** Captura y análisis de eventos del sistema en tiempo real.
+
+**Ventajas:**
+- **Optimización:** Menor carga en la base de datos de Zabbix al evitar ítems innecesarios.
+- **Escalabilidad:** Facilidad para actualizar protocolos específicos sin afectar el monitoreo general.
+- **Claridad:** Mejor organización visual en la interfaz de Zabbix.
 
 ## Caracteristicas Principales
 
@@ -17,9 +31,18 @@ Template para el monitoreo avanzado de dispositivos **Mikrotik** utilizando la *
     * Normalizacion del estado de vecinos para manejar respuestas de RouterOS como `Full`.
 * **Inventario:** Recoleccion automatica de modelo, numero de serie, firmware y datos principales del equipo.
 
+## 🛠 Funcionalidad: Log Trapper via REST
+
+La versión 0.39 introduce el **Log Trapper**, una herramienta diseñada para capturar eventos específicos del log de RouterOS directamente a través de la API.
+
+### Características del Log Trapper:
+* **Filtrado inteligente:** Utiliza expresiones regulares para identificar errores, advertencias o cambios de estado críticos.
+* **Monitoreo selectivo:** Puedes configurar el template para que haga match con "topics" específicos (ej. `script,error` o `bgp,info`).
+* **Triggers automáticos:** Genera alertas inmediatas cuando se detectan patrones de falla en los logs, permitiendo una respuesta proactiva antes de que el servicio se vea afectado.
+
 ## Requisitos de Configuracion
 
-Para garantizar el funcionamiento correcto de la v0.34, asegurese de cumplir con:
+Para garantizar el funcionamiento correcto, asegurese de cumplir con:
 
 1. **RouterOS v7.x:** recomendado para versiones superiores a **v7.20**.
 2. **Servicio web habilitado:** el equipo debe tener habilitado HTTPS mediante `www-ssl`.
@@ -86,7 +109,10 @@ LS retransmits = 0
 
 ## Historial de Versiones
 
-* **v0.34:** Agregado monitoreo OSPFv2 para RouterOS 7.20+: vecinos, estado `full`, contadores de LSDB, resumen de LSAs, dashboard y macro `{$OSPFV2_INSTANCE.MATCHES}`.
+* **v0.39:** * Reestructuración modular del repositorio.
+    * Implementación del módulo **Log Trapper** con soporte para expresiones regulares.
+    * Mejoras en la lógica de descubrimiento para evitar falsos positivos.* **v0.34:** Agregado monitoreo OSPFv2 para RouterOS 7.20+: vecinos, estado `full`, contadores de LSDB, resumen de LSAs, dashboard y macro `{$OSPFV2_INSTANCE.MATCHES}`.
+* **v0.34:** Agregado monitoreo OSPFv2 (vecinos, estado full, LSAs).
 * **v0.33:** Optimizacion visual de dashboards y refinamiento de widgets.
 * **v0.32:** Adicion masiva de monitoreo de firewall, salud del sistema y almacenamiento.
 * **v0.26:** Version inicial estable con soporte BGP y SFP.
